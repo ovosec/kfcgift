@@ -1,0 +1,17 @@
+(node:234192) [DEP0123] DeprecationWarning: Setting the TLS ServerName to an IP address is not permitted by RFC 6066. This will be ignored in a future version.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+fetchCidrs error Error: 无法获取CIDR列表: 404
+    at fetchCidrs (D:\workspace\kfcgift\scanner-js\index.js:113:29)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async buildTargets (D:\workspace\kfcgift\scanner-js\index.js:127:19)
+    at async Server.<anonymous> (D:\workspace\kfcgift\scanner-js\index.js:314:23)
+fetchCidrs error Error: 无法获取CIDR列表: 404
+    at fetchCidrs (D:\workspace\kfcgift\scanner-js\index.js:113:29)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async buildTargets (D:\workspace\kfcgift\scanner-js\index.js:127:19)
+    at async Server.<anonymous> (D:\workspace\kfcgift\scanner-js\index.js:314:23)
+fetchCidrs error Error: 无法获取CIDR列表: 404
+    at fetchCidrs (D:\workspace\kfcgift\scanner-js\index.js:113:29)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async buildTargets (D:\workspace\kfcgift\scanner-js\index.js:127:19)
+    at async Server.<anonymous> (D:\workspace\kfcgift\scanner-js\index.js:314:23)

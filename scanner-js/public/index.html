@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CF 优选节点扫描</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: #eef2ff;
+      color: #111827;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; padding: 24px; background: linear-gradient(180deg, #eef2ff 0%, #f8fafc 100%); }
+    h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -0.03em; }
+    p.lead { margin: 0; color: #475569; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+    .badge { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 999px; background: rgba(59, 130, 246, .12); color: #1d4ed8; font-weight: 600; }
+    .container { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+    .card { background: #ffffff; border: 1px solid rgba(148, 163, 184, .18); border-radius: 20px; padding: 22px; box-shadow: 0 20px 60px rgba(15, 23, 42, .08); }
+    .panel-title { margin: 0 0 14px; font-size: 18px; font-weight: 700; }
+    label { display: block; margin: 12px 0 6px; font-size: 14px; color: #475569; }
+    textarea, select, input { width: 100%; border: 1px solid #cbd5e1; border-radius: 14px; padding: 12px 14px; font-size: 14px; color: #0f172a; background: #f8fafc; }
+    textarea { min-height: 160px; resize: vertical; }
+    .control-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-row { display: grid; gap: 12px; }
+    .checkbox-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+    .button-row { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+    button { border: none; border-radius: 14px; padding: 12px 18px; font-weight: 700; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    button:disabled { cursor: not-allowed; opacity: .7; }
+    .btn-primary { background: #4338ca; color: #fff; box-shadow: 0 16px 32px rgba(67, 56, 202, .18); }
+    .btn-secondary { background: #e2e8f0; color: #0f172a; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+    .stat-card { border-radius: 18px; background: #f8fafc; padding: 16px; text-align: center; }
+    .stat-card strong { display: block; font-size: 22px; margin-bottom: 6px; color: #0f172a; }
+    .stat-card span { color: #64748b; font-size: 13px; }
+    .progress { width: 100%; height: 10px; border-radius: 999px; background: #e2e8f0; overflow: hidden; margin-top: 18px; }
+    .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #4338ca, #60a5fa); transition: width .2s ease; }
+    .info-note { margin-top: 8px; color: #475569; font-size: 13px; }
+    .result-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+    .result-table th, .result-table td { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; }
+    .result-table th { text-align: left; color: #334155; background: #f8fafc; position: sticky; top: 0; z-index: 1; }
+    .result-table tbody tr:hover { background: #f1f5f9; }
+    .result-ok { color: #15803d; font-weight: 700; }
+    .result-fail { color: #b91c1c; font-weight: 700; }
+    .small-text { color: #64748b; font-size: 13px; }
+    .controls { display: grid; gap: 12px; }
+    @media (max-width: 980px) { .container { grid-template-columns: 1fr; } .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 640px) { body { padding: 16px; } .button-row { flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>CF 优选节点扫描</h1>
+      <p class="lead">快速筛选 CF/本地 IP 段中的可用优选节点</p>
+    </div>
+    <div class="badge">当前扫描服务：<strong>本地</strong></div>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <p class="panel-title">扫描配置</p>
+      <div class="form-row">
+        <label for="targets">目标列表 / CIDR</label>
+        <textarea id="targets" placeholder="支持 ip:port 或 ip/24，每行一个。留空使用 CF IP 段随机生成。"></textarea>
+      </div>
+      <div>
+        <label for="library">IP 库</label>
+        <select id="library">
+          <option value="">加载中...</option>
+        </select>
+      </div>
+      <div class="info-note" id="libraryNote" style="margin-top:4px;">选 IP 库自动加载 CIDR；也可手动输入目标。</div>
+      <div class="control-grid">
+        <div>
+          <label for="defaultPort">端口（逗号分隔，留空随机）</label>
+          <input id="defaultPort" type="text" placeholder="443,2053,2083 留空随机" value="" />
+        </div>
+        <div>
+          <label for="sampleSize">预计 IP 数量</label>
+          <input id="sampleSize" type="text" readonly value="0" />
+        </div>
+      </div>
+      <div class="control-grid">
+        <div>
+          <label for="perCidrCount">每网段随机IP</label>
+          <input id="perCidrCount" type="number" min="1" max="128" value="1" />
+        </div>
+        <div>
+          <label for="timeout">超时(ms)</label>
+          <input id="timeout" type="number" min="500" max="15000" value="3000" />
+        </div>
+      </div>
+      <div class="control-grid">
+        <div>
+          <label for="concurrency">并发数</label>
+          <input id="concurrency" type="number" min="5" max="500" value="80" />
+        </div>
+        <div></div>
+      </div>
+      <div class="checkbox-row">
+        <label><input id="tls" type="checkbox" checked /> TLS 探测</label>
+      </div>
+      <div class="button-row">
+        <button id="start" class="btn-primary">开始扫描</button>
+        <button id="clear" class="btn-secondary">清空结果</button>
+        <button id="export" class="btn-secondary">导出节点</button>
+        <button id="exportSub" class="btn-secondary">导出订阅</button>
+      </div>
+      <div id="subConfig" style="display:none;margin-top:14px;padding:14px;background:#f8fafc;border-radius:14px;border:1px solid #e2e8f0;">
+        <p style="margin:0 0 10px;font-weight:700;font-size:14px;">VLESS WS 订阅参数</p>
+        <div class="control-grid">
+          <div><label>UUID</label><input id="subUuid" value="00000000-0000-4000-8000-000000000000" /></div>
+          <div><label>你的 CF 域名</label><input id="subHost" placeholder="必填！Worker 绑定的域名" /></div>
+          <div><label>Path</label><input id="subPath" value="/video?ed=2560" /></div>
+          <div><label>Transport</label><select id="subType"><option value="ws">ws</option></select></div>
+        </div>
+        <button id="doExportSub" class="btn-primary" style="margin-top:10px;">生成 Base64 订阅</button>
+      </div>
+      <div class="info-note">建议先从小批量开始。订阅需填入你 CF Worker 的真实域名。</div>
+    </div>
+
+    <div class="card">
+      <div class="panel-title">扫描结果</div>
+      <div class="stats">
+        <div class="stat-card"><strong id="totalCount">0</strong><span>总目标</span></div>
+        <div class="stat-card"><strong id="successCount">0</strong><span>可用</span></div>
+        <div class="stat-card"><strong id="failCount">0</strong><span>失败</span></div>
+        <div class="stat-card"><strong id="elapsedTime">0s</strong><span>耗时</span></div>
+      </div>
+      <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="info-note"><span id="statusTip">等待扫描。</span></div>
+      <table class="result-table">
+        <thead>
+          <tr><th>#</th><th>IP</th><th>端口</th><th>延迟</th><th>数据中心</th><th>国家</th><th>测速</th></tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const startButton = document.getElementById('start');
+    const clearButton = document.getElementById('clear');
+    const exportButton = document.getElementById('export');
+    const statusTag = document.getElementById('statusTip');
+    const resultBody = document.getElementById('resultBody');
+    const totalCount = document.getElementById('totalCount');
+    const successCount = document.getElementById('successCount');
+    const failCount = document.getElementById('failCount');
+    const elapsedTime = document.getElementById('elapsedTime');
+    const progressBar = document.getElementById('progressBar');
+    let latestResults = [];
+
+    function setLoading(loading) {
+      startButton.disabled = loading; clearButton.disabled = loading;
+      exportButton.disabled = loading || !latestResults.some(r => r && r.ok);
+      startButton.textContent = loading ? '扫描中...' : '开始扫描';
+    }
+    function resetResults() {
+      latestResults = []; resultBody.innerHTML = '';
+      totalCount.textContent = '0'; successCount.textContent = '0'; failCount.textContent = '0';
+      elapsedTime.textContent = '0s'; progressBar.style.width = '0%';
+      statusTag.textContent = '等待扫描。'; exportButton.disabled = true;
+    }
+    async function loadLibraries() {
+      const librarySelect = document.getElementById('library');
+      librarySelect.innerHTML = '<option value="">正在加载...</option>';
+      try {
+        const response = await fetch('/libraries');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || '无法加载 IP 库');
+        librarySelect.innerHTML = '<option value="">请选择 IP 库</option>' + data.map(lib => `<option value="${lib.id}">${lib.name}</option>`).join('');
+      } catch (err) {
+        librarySelect.innerHTML = `<option value="">加载失败：${err.message}</option>`;
+      }
+    }
+    function countCidrs(text) {
+      if (!text) return 0;
+      return text.split(/\r?\n/).map(l => l.trim()).filter(l => /^[\d.]+\/\d+$/.test(l)).length;
+    }
+    function recalcEstimatedIPs() {
+      const targetsText = document.getElementById('targets').value;
+      const portsRaw = document.getElementById('defaultPort').value.toString().trim();
+      const ports = portsRaw.split(',').map(s => s.trim()).filter(Boolean).map(n => Number(n)).filter(n => n > 0 && n <= 65535);
+      const perCidr = Number(document.getElementById('perCidrCount').value || 1);
+      const portMult = ports.length || 1;
+      let numCidrs = countCidrs(targetsText);
+      if (!targetsText.trim()) numCidrs = 30;
+      document.getElementById('sampleSize').value = numCidrs * perCidr * portMult;
+    }
+    function updateProgress(current, total) {
+      if (total <= 0) return;
+      progressBar.style.width = Math.min(100, Math.round(current / total * 100)) + '%';
+      statusTag.textContent = `扫描中：${current}/${total}`;
+    }
+    function downloadText(filename, content) {
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+
+    async function scanTargets() {
+      const targetsInput = document.getElementById('targets').value.trim();
+      const library = document.getElementById('library').value;
+      const portsRaw = document.getElementById('defaultPort').value.toString();
+      const ports = portsRaw.split(',').map(s => s.trim()).filter(Boolean).map(n => Number(n)).filter(n => n > 0 && n <= 65535);
+      const concurrency = Number(document.getElementById('concurrency').value || 50);
+      const timeout = Number(document.getElementById('timeout').value || 3000);
+      const sampleSize = Number(document.getElementById('sampleSize').value || 64);
+      const perCidrCount = Number(document.getElementById('perCidrCount').value || 1);
+      const tls = document.getElementById('tls').checked;
+      setLoading(true); resetResults();
+      const startTime = Date.now();
+      try {
+        const response = await fetch('/scan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ library, targets: targetsInput, ports, concurrency, timeout, sampleSize, perCidrCount, tls })
+        });
+        if (!response.ok) { const errData = await response.json().catch(() => ({})); throw new Error(errData.error || `HTTP ${response.status}`); }
+        const reader = response.body.getReader(); const decoder = new TextDecoder();
+        let buf = '', allResults = [], totalTargets = 0, successCnt = 0, failCnt = 0;
+        statusTag.textContent = '正在生成扫描目标...';
+        while (true) {
+          const { done, value } = await reader.read(); if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n'); buf = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let event; try { event = JSON.parse(line.slice(6)); } catch (e) { continue; }
+            if (event.type === 'start') { totalTargets = event.totalTargets; totalCount.textContent = totalTargets; statusTag.textContent = `扫描中：0/${totalTargets}`; }
+            else if (event.type === 'progress') { allResults[event.index] = event.result; event.result && event.result.ok ? successCnt++ : failCnt++; updateProgress(event.current, event.total || totalTargets); if (event.result && event.result.ok) appendResultRow(event.result, successCnt); }
+            else if (event.type === 'done') {
+              elapsedTime.textContent = Math.round((Date.now() - startTime) / 1000) + 's';
+              successCount.textContent = event.summary.successCount || successCnt;
+              failCount.textContent = event.summary.failureCount || failCnt;
+              totalCount.textContent = event.summary.totalTargets || totalTargets;
+              progressBar.style.width = '100%';
+              statusTag.textContent = `完成，可用 ${successCount.textContent}，失败 ${failCount.textContent}`;
+              latestResults = event.results || allResults.filter(r => r);
+              refreshResultTable(latestResults);
+            }
+          }
+        }
+      } catch (err) { statusTag.textContent = `扫描失败：${err.message}`; }
+      finally { setLoading(false); }
+    }
+
+    const COLO_MAP = {
+      LAX:'US',SFO:'US',SJC:'US',SEA:'US',DEN:'US',DFW:'US',ORD:'US',IAD:'US',ATL:'US',MIA:'US',EWR:'US',BOS:'US',
+      AMS:'NL',LHR:'GB',FRA:'DE',CDG:'FR',SIN:'SG',NRT:'JP',KIX:'JP',HKG:'HK',TPE:'TW',ICN:'KR',
+      BOM:'IN',MAA:'IN',DEL:'IN',BLR:'IN',SYD:'AU',MEL:'AU',GRU:'BR',MAD:'ES',MXP:'IT',ARN:'SE',WAW:'PL',
+      DME:'RU',JNB:'ZA',DXB:'AE',MCT:'OM',
+    };
+    function coloCountry(colo) { return COLO_MAP[colo?.toUpperCase()] || '-'; }
+
+    function renderRow(item, idx) {
+      return `<td>${idx}</td><td>${item.host}</td><td>${item.port}</td><td>${item.latency ?? '-'}ms</td><td>${item.loc||'-'}</td><td>${coloCountry(item.loc)}</td><td><button class="btn-speedtest" data-host="${item.host}">测试</button></td>`;
+    }
+    function appendResultRow(item, idx) {
+      const tr = document.createElement('tr'); tr.innerHTML = renderRow(item, idx);
+      resultBody.insertBefore(tr, resultBody.firstChild); bindSpeedBtn(tr.querySelector('.btn-speedtest'));
+    }
+    function refreshResultTable(results) {
+      resultBody.innerHTML = '';
+      results.filter(item => item && item.ok).slice(0, 300).forEach((item, idx) => {
+        const tr = document.createElement('tr'); tr.innerHTML = renderRow(item, idx + 1);
+        resultBody.appendChild(tr); bindSpeedBtn(tr.querySelector('.btn-speedtest'));
+      });
+    }
+    function bindSpeedBtn(btn) {
+      if (!btn) return;
+      btn.addEventListener('click', async function() {
+        this.textContent = '...'; this.disabled = true;
+        try {
+          const resp = await fetch('/speedtest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host: this.dataset.host }) });
+          const data = await resp.json();
+          this.textContent = data.ok ? data.speed + ' Mbps' : '失败';
+          this.style.background = data.ok ? '#16a34a' : '#dc2626'; this.style.color = '#fff';
+        } catch (e) { this.textContent = '错误'; this.style.background = '#dc2626'; this.style.color = '#fff'; }
+        this.disabled = false;
+      });
+    }
+
+    startButton.addEventListener('click', scanTargets);
+    clearButton.addEventListener('click', resetResults);
+    exportButton.addEventListener('click', () => {
+      if (!latestResults.length) return;
+      downloadText('cf-优选节点.txt', latestResults.filter(r => r && r.ok).map(r => `${r.host}:${r.port}${r.loc?'#'+r.loc:''}`).join('\n'));
+    });
+    document.getElementById('exportSub').addEventListener('click', () => {
+      const p = document.getElementById('subConfig'); p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('doExportSub').addEventListener('click', () => {
+      const okNodes = latestResults.filter(r => r && r.ok);
+      if (!okNodes.length) return alert('没有可用节点');
+      const uuid = document.getElementById('subUuid').value.trim() || '00000000-0000-4000-8000-000000000000';
+      const host = document.getElementById('subHost').value.trim();
+      if (!host) return alert('请填写你的 CF Worker 域名');
+      const path = document.getElementById('subPath').value.trim() || '/video?ed=2560';
+      const type = document.getElementById('subType').value || 'ws';
+      // 严格照 _worker.js 格式：security=tls&type=ws&host=域名&path=/&fp=chrome&sni=域名&encryption=none
+      const lines = okNodes.map(item => {
+        const remark = item.loc || item.host;
+        return `vless://${uuid}@${item.host}:${item.port}?security=tls&type=${type}&host=${host}&path=${encodeURIComponent(path)}&fp=chrome&sni=${host}&encryption=none#${encodeURIComponent(remark)}`;
+      });
+      downloadText('cf-sub.txt', btoa(unescape(encodeURIComponent(lines.join('\n')))));
+    });
+    document.getElementById('defaultPort').addEventListener('input', recalcEstimatedIPs);
+    document.getElementById('perCidrCount').addEventListener('input', recalcEstimatedIPs);
+    document.getElementById('targets').addEventListener('input', recalcEstimatedIPs);
+    document.getElementById('library').addEventListener('change', async (event) => {
+      const libId = event.target.value;
+      if (!libId) { recalcEstimatedIPs(); return; }
+      const tf = document.getElementById('targets'); tf.placeholder = '正在加载...';
+      try {
+        const r = await fetch(`/library?lib=${encodeURIComponent(libId)}`);
+        const d = await r.json(); if (!r.ok) throw new Error(d.error || '加载失败');
+        tf.value = d.content || ''; recalcEstimatedIPs();
+      } catch (err) { tf.placeholder = '加载失败，请重试。'; }
+    });
+    loadLibraries().then(() => { recalcEstimatedIPs(); resetResults(); });
+  </script>
+</body>
+</html>
